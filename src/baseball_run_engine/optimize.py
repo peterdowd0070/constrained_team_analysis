@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import numpy as np
 from .events import Hitter
 from .advancement import AdvancementKernel
-from .markov import evaluate_lineup
+from .fast_markov import FastRunEngine
 
 @dataclass(frozen=True)
 class OptimizationResult:
@@ -21,11 +21,12 @@ def optimize_lineup(hitters: list[Hitter],kernel: AdvancementKernel|None=None,
     if len(hitters)!=9 or restarts<0: raise ValueError("Need nine hitters and nonnegative restarts")
     kernel = kernel or AdvancementKernel()
     rng = np.random.default_rng(seed)
+    engine = FastRunEngine(kernel, innings=innings)
     cache = {}
     def score(order):
         key=tuple(order)
         if key not in cache:
-            cache[key]=evaluate_lineup([hitters[i] for i in key],kernel,innings).total
+            cache[key]=engine.score([hitters[i] for i in key])
         return cache[key]
     best=tuple(range(9)); best_value=score(best)
     for restart in range(restarts+1):
@@ -51,6 +52,7 @@ def select_budget_roster(pool: list[Hitter],budget: float,
     if len(pool)<9 or budget<0 or shortlist<1: raise ValueError("Invalid roster inputs")
     if len({p.name for p in pool}) != len(pool): raise ValueError("Duplicate player names")
     kernel = kernel or AdvancementKernel()
+    engine = FastRunEngine(kernel)
     chosen=sorted(pool,key=lambda p:p.salary)[:9]
     if sum(p.salary for p in chosen)>budget+1e-9:
         raise ValueError("No feasible nine-hitter roster")
@@ -58,7 +60,7 @@ def select_budget_roster(pool: list[Hitter],budget: float,
     def evaluate(roster):
         nonlocal evaluations
         evaluations+=1
-        return evaluate_lineup(roster,kernel).total
+        return engine.score(roster)
     def refine(roster):
         nonlocal evaluations
         res=optimize_lineup(roster,kernel,restarts=0,seed=seed,max_passes=5)

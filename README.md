@@ -2,7 +2,7 @@
 
 Research MVP for batting-order and salary-constrained roster analysis using a **216-state Markov reward model**.
 
-The repository separates player projections, runner advancement, exact run evaluation, Monte Carlo simulation, and heuristic optimization. **All example hitters are fictional**. Live ZiPS/Steamer downloads are supported where FanGraphs permits access, but not yet verified against a live response in this environment.
+The repository separates player projections, runner advancement, exact run evaluation, Monte Carlo simulation, and heuristic optimization. The GUI requires imported player projections and never silently substitutes fictional players. Synthetic fixture players remain in the test/examples directory only. Live ZiPS/Steamer downloads are attempted where FanGraphs permits access, but have not been verified against a live response in this environment.
 
 ## Install
 
@@ -20,7 +20,7 @@ python -m pip install -e '.[gui]'
 python -m streamlit run src/baseball_run_engine/gui.py
 ```
 
-The app supports nine-hitter lineup evaluation and order optimization, salary-only roster selection, CSV upload, live FanGraphs fetch attempts, and Retrosheet parsed-play acquisition. It labels fictional projections and the uncalibrated advancement model. It currently provides an interactive development UI, not a hosted website.
+The dark OOTP-inspired front office presents a nine-player lineup card, baseball diamond, expected-run panel, and quick/thorough lineup optimization. It loads imported Steamer/ZiPS projections (not synthetic players by default), supports salary-only roster selection, CSV upload, FanGraphs fetch attempts, and Retrosheet parsed-play acquisition. The interface is a local Streamlit application, not a hosted website.
 
 ## Retrosheet advancement
 
@@ -76,7 +76,9 @@ src/baseball_run_engine/
   statcast.py      # experimental empirical transition fitter
   retrosheet.py    # parsed-play advancement fit and validation
   gui.py           # Streamlit browser application
-  markov.py        # exact nine-inning expected runs
+  markov.py        # exact reference evaluator (dense)
+  fast_markov.py   # cached sparse LU evaluator for lineup and roster search
+  ui_components.py # OOTP-inspired lineup card and styling
   monte_carlo.py   # stochastic validation
   optimize.py      # heuristic lineup and roster search
   cli.py           # console application
@@ -107,3 +109,7 @@ Requires `game_pk, inning, inning_topbot, at_bat_number, pitch_number, events, o
 ## Next steps
 
 Integrate validated play-by-play advancement; freeze preseason ZiPS/Steamer datasets and backtest; add positional eligibility and lineup platoons; propagate projection uncertainty; optionally connect the 14-zone batting model.
+
+## Performance
+
+The optimizer uses `FastRunEngine` to compile the base/out advancement kernel once, cache each player's event-conditioned 24-state matrices, and solve the sparse 216-state linear system for each batting order. The original dense solver remains the correctness reference. The GUI diagnostics tab offers a one-lineup timing and numerical comparison; speedups depend on data and hardware. Avoid interpreting heuristic lineup search as exhaustive 9! optimization.
