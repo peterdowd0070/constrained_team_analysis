@@ -11,6 +11,23 @@ python -m pip install -e '.[dev]'
 pytest -q
 ```
 
+## Browser GUI
+
+Install the optional GUI dependencies and start the Streamlit interface from the repository root:
+
+```bash
+python -m pip install -e '.[gui]'
+python -m streamlit run src/baseball_run_engine/gui.py
+```
+
+The app supports nine-hitter lineup evaluation and order optimization, salary-only roster selection, CSV upload, live FanGraphs fetch attempts, and Retrosheet parsed-play acquisition. It labels fictional projections and the uncalibrated advancement model. It currently provides an interactive development UI, not a hosted website.
+
+## Retrosheet advancement
+
+Use the GUI's **Download and fit advancement** action to retrieve a season of Retrosheet parsed play data and fit an empirical advancement kernel. See the module `src/baseball_run_engine/retrosheet.py`. Historical parsed play files and access are subject to Retrosheet availability. The resulting kernel does not yet model steals or wild pitches occurring between plate appearances.
+
+Retrosheet material is obtained free of charge and copyrighted by Retrosheet.
+
 ## Example commands
 
 ```bash
@@ -57,6 +74,8 @@ src/baseball_run_engine/
   state.py         # (outs, occupied bases, next batter) indexing
   advancement.py   # state transition kernel / smoothing
   statcast.py      # experimental empirical transition fitter
+  retrosheet.py    # parsed-play advancement fit and validation
+  gui.py           # Streamlit browser application
   markov.py        # exact nine-inning expected runs
   monte_carlo.py   # stochastic validation
   optimize.py      # heuristic lineup and roster search
