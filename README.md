@@ -20,7 +20,21 @@ python -m pip install -e '.[gui]'
 python -m streamlit run src/baseball_run_engine/gui.py
 ```
 
-The dark OOTP-inspired front office presents a nine-player lineup card, baseball diamond, expected-run panel, and quick/thorough lineup optimization. It loads imported Steamer/ZiPS projections (not synthetic players by default), supports salary-only roster selection, CSV upload, FanGraphs fetch attempts, and Retrosheet parsed-play acquisition. The interface is a local Streamlit application, not a hosted website.
+The dark OOTP-inspired front office presents a nine-player lineup card, baseball diamond, expected-run panel, and quick/thorough lineup optimization. The optimized order is applied through a Streamlit callback, before the widgets are rendered. Lineup names are editable text (drag to highlight, Cmd/Ctrl+A then Backspace); each row also has a Find picker and a one-click clear button. It loads imported Steamer/ZiPS projections (not synthetic players by default), supports salary-only roster selection, CSV upload, FanGraphs fetch attempts, and Retrosheet parsed-play acquisition. The interface is a local Streamlit application, not a hosted website.
+
+## Player salaries
+
+The **Data hub** supports a salary CSV upload, an optional 2026 community salary download, and a salary-to-projections merge. Use a verified current salary/payroll export from [FanGraphs RosterResource](https://www.fangraphs.com/roster-resource/breakdowns/payroll) when possible; its team pages distinguish contractual salary, cash outlay, and luxury-tax AAV.
+
+For quick exploratory 2026 work, **Download community 2026 salaries** fetches the openly accessible [community CSV](https://github.com/jrue/python_lesson_2026/blob/main/mlb-salaries-2026.csv) and records the URL, retrieval time, and SHA-256 checksum in a manifest. Its salary basis is **not verified** (and may differ from annual cash payroll, luxury-tax AAV, and acquisition cost). Do not present it as an audited RosterResource export or use it for a future-season cost constraint without validation.
+
+CSV input supports `Name`/`Player`, `Salary`, optional `FGID`, `Team`, and `Season`. Salary matching prioritizes exact FanGraphs IDs, then normalized name plus team, then uniquely matching names. Missing or ambiguous salaries remain unmatched and those players are **excluded** from salary optimization rather than treated as free. Merging writes a separate projection CSV and a JSON report; original source files are preserved.
+
+For 2027 projections, **2026 salary figures are historical, not 2027 contractual commitments**. Salary-constrained roster experiments also require acquisition feasibility, positions, and contracts before conclusions have real-world meaning.
+
+## Fix for lineup-order Streamlit exception
+
+When applying an optimized batting order, the prior implementation assigned to a widget-bound `st.session_state` key after its selectbox was created. The new version uses a pre-render `on_click` callback and editable name inputs, avoiding the post-instantiation mutation. Use the **×** clear button to empty the entire name or **Cmd/Ctrl+A** then Backspace to replace the field. Browser-native double-click may select a word rather than the whole name.
 
 ## Retrosheet advancement
 
@@ -76,6 +90,7 @@ src/baseball_run_engine/
   statcast.py      # experimental empirical transition fitter
   retrosheet.py    # parsed-play advancement fit and validation
   gui.py           # Streamlit browser application
+  salaries.py      # strict salary matching and optional community 2026 fetch
   markov.py        # exact reference evaluator (dense)
   fast_markov.py   # cached sparse LU evaluator for lineup and roster search
   ui_components.py # OOTP-inspired lineup card and styling
