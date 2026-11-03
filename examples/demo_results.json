@@ -1,0 +1,10 @@
+{
+  "note": "Illustrative fictional inputs, not actual MLB projections",
+  "model": "216-state Markov run engine",
+  "projection_source": "examples/fictional_projections.csv",
+  "example_commands": [
+    "baseball-runs evaluate --projections examples/fictional_projections.csv",
+    "baseball-runs simulate --projections examples/fictional_projections.csv --games 10000",
+    "baseball-runs optimize --projections examples/fictional_projections.csv --restarts 2"
+  ]
+}
