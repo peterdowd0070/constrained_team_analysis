@@ -10,6 +10,9 @@ from .projections import read_projection_csv
 from .statcast import fit_kernel_from_statcast
 from .fangraphs import fetch_json,save_snapshot,read_export_csv,SYSTEMS
 from .blend import blend_files
+from .market_data import load_enriched_pool,filter_roster_candidates,most_recent
+from .salaries import download_2026_salary_csv
+from .service_time import download_service_index
 
 def _lineup(path,names):
     hitters=read_projection_csv(path)
@@ -40,6 +43,13 @@ def main(argv=None):
         if cmd=="select":
             p.add_argument("--budget",type=float,required=True)
             p.add_argument("--seed",type=int,default=42)
+            p.add_argument("--salary-csv",default=None)
+            p.add_argument("--service-file",default=None)
+            p.add_argument("--salary-season",type=int,default=2026)
+            p.add_argument("--exclude-minimum-salary",action="store_true")
+            p.add_argument("--league-minimum",type=float,default=780_000)
+            p.add_argument("--min-service-years",type=int,default=0)
+            p.add_argument("--fetch-missing-market-data",action="store_true")
     p=sub.add_parser("fit-advancement")
     p.add_argument("--statcast",required=True)
     p.add_argument("--output",required=True)
@@ -76,7 +86,23 @@ def main(argv=None):
         print(json.dumps(report,indent=2)); return
     kernel=AdvancementKernel.load(a.kernel) if a.kernel else AdvancementKernel()
     if a.command=="select":
-        result=select_budget_roster(read_projection_csv(a.projections),a.budget,kernel,seed=a.seed)
+        from pathlib import Path
+        salary=a.salary_csv or most_recent("data/salaries","*.csv")
+        service=a.service_file or most_recent("data/service_time","*.json")
+        if a.fetch_missing_market_data:
+            if not salary and a.salary_season==2026:
+                salary,_=download_2026_salary_csv("data/salaries",timeout=8)
+            if not service:
+                service,_=download_service_index("data/service_time",timeout=8)
+        market=load_enriched_pool(a.projections,salary_csv=salary,
+                                  service_file=service,season=a.salary_season)
+        candidates,report=filter_roster_candidates(market,
+            exclude_minimum_salary=a.exclude_minimum_salary,
+            league_minimum=a.league_minimum,
+            minimum_service_years=a.min_service_years)
+        if len(candidates)<9:
+            raise ValueError(f"Only {len(candidates)} eligible hitters (need nine): {report}")
+        result=select_budget_roster(candidates,a.budget,kernel,seed=a.seed)
     else:
         roster=_lineup(a.projections,a.lineup)
         if a.command=="simulate":
@@ -88,9 +114,13 @@ def main(argv=None):
             print(json.dumps({"expected_runs":res.total,"per_inning":res.per_inning,
                               "batting_order":[h.name for h in roster]},indent=2)); return
         result=optimize_lineup(roster,kernel,restarts=a.restarts,seed=a.seed,innings=a.innings)
-    print(json.dumps({"expected_runs":result.expected_runs,"evaluations":result.evaluations,
-                      "batting_order":[h.name for h in result.lineup],
-                      "total_salary":sum(h.salary for h in result.lineup)},indent=2))
+    summary={"expected_runs":result.expected_runs,"evaluations":result.evaluations,
+             "batting_order":[h.name for h in result.lineup],
+             "total_salary":sum(h.salary for h in result.lineup)}
+    if a.command=="select":
+        summary["eligibility"]=report
+        summary["sources"]=market.report
+    print(json.dumps(summary,indent=2))
 
 if __name__=="__main__":
     main()

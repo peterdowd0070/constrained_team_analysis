@@ -22,13 +22,38 @@ python -m streamlit run src/baseball_run_engine/gui.py
 
 The dark OOTP-inspired front office presents a nine-player lineup card, baseball diamond, expected-run panel, and quick/thorough lineup optimization. The optimized order is applied through a Streamlit callback, before the widgets are rendered. Lineup names are editable text (drag to highlight, Cmd/Ctrl+A then Backspace); each row also has a Find picker and a one-click clear button. It loads imported Steamer/ZiPS projections (not synthetic players by default), supports salary-only roster selection, CSV upload, FanGraphs fetch attempts, and Retrosheet parsed-play acquisition. The interface is a local Streamlit application, not a hosted website.
 
+## Automatic salary and service-time enrichment
+
+The Streamlit frontend now combines projections with market metadata **in the backend, in memory**. It does not require a manual merge or a second projection CSV. When a projections file is loaded, it uses the newest cached salary CSV and service-time JSON index; if missing, it attempts one automatic download per browser session (failure does not fabricate records).
+
+- Salary source (2026): [community 2026 player salary CSV](https://github.com/jrue/python_lesson_2026/blob/main/mlb-salaries-2026.csv); **unverified accounting basis**. Import a verified [FanGraphs RosterResource](https://www.fangraphs.com/roster-resource/breakdowns/payroll) payroll export to override it.
+- Service-time source: [Big League Service Time Tracker](https://github.com/RainbowMang0/MLB-Service-Time-Tracker), a daily GitHub index derived from public MLB transaction records. **Estimated, not official MLB/MLBPA data.** Players with historical gaps have lower-bound estimates.
+- Identity join: FanGraphs ID for salary, MLBAM ID for service time when present; otherwise exact normalized name and team, then unique name (service only). An unmatched or ambiguous player is never assigned $0 as an assumed acquisition cost.
+- Retain the source files, timestamps, and provenance manifests. The app loads them into a `market_data.EnrichedPool` and passes only the filtered hitter pool to the optimizer.
+
+In **Front Office**, check **Exclude league-minimum salaries** to exclude hitters at or below the specified 2026 minimum ($780,000). Set **Minimum completed MLB service years** to 0–15, using 172 credited days per service year; 0 disables the service filter. Both filters are independent. Unknown service excludes the player when service minimum is active, and documented lower bounds qualify only if they already exceed the threshold.
+
+**2026 minimum and 2026 salaries are not a guaranteed 2027 cost basis.** The 2022–26 MLB collective bargaining agreement expires December 1, 2026. Update the cost model after the new agreement and use projected 2027 commitments for an actual 2027 roster study.
+
+Use the Data Hub to inspect source coverage or override either file. Unavailable data produces explicit warnings rather than silently admitting unpriced players.
+
+CLI equivalent:
+
+```bash
+baseball-runs select --projections data/projections/steamer_YYYYMMDDTHHMMSSZ.csv \
+  --budget 65000000 --fetch-missing-market-data \
+  --exclude-minimum-salary --league-minimum 780000 --min-service-years 3
+```
+
+The CLI also accepts `--salary-csv`, `--service-file`, and `--salary-season`; if not given, it uses the most recent local market sources. External network access is only attempted from the CLI with `--fetch-missing-market-data`.
+
 ## Player salaries
 
 The **Data hub** supports a salary CSV upload, an optional 2026 community salary download, and a salary-to-projections merge. Use a verified current salary/payroll export from [FanGraphs RosterResource](https://www.fangraphs.com/roster-resource/breakdowns/payroll) when possible; its team pages distinguish contractual salary, cash outlay, and luxury-tax AAV.
 
 For quick exploratory 2026 work, **Download community 2026 salaries** fetches the openly accessible [community CSV](https://github.com/jrue/python_lesson_2026/blob/main/mlb-salaries-2026.csv) and records the URL, retrieval time, and SHA-256 checksum in a manifest. Its salary basis is **not verified** (and may differ from annual cash payroll, luxury-tax AAV, and acquisition cost). Do not present it as an audited RosterResource export or use it for a future-season cost constraint without validation.
 
-CSV input supports `Name`/`Player`, `Salary`, optional `FGID`, `Team`, and `Season`. Salary matching prioritizes exact FanGraphs IDs, then normalized name plus team, then uniquely matching names. Missing or ambiguous salaries remain unmatched and those players are **excluded** from salary optimization rather than treated as free. Merging writes a separate projection CSV and a JSON report; original source files are preserved.
+CSV input supports `Name`/`Player`, `Salary`, optional `FGID`, `Team`, and `Season`. Salary matching prioritizes exact FanGraphs IDs, then normalized name plus team, then uniquely matching names. Missing or ambiguous salaries remain unmatched and those players are **excluded** from salary optimization rather than treated as free. The legacy explicit CSV merge tool writes a separate projection CSV and a JSON report. The GUI now uses an in-memory join automatically; original source files are preserved.
 
 For 2027 projections, **2026 salary figures are historical, not 2027 contractual commitments**. Salary-constrained roster experiments also require acquisition feasibility, positions, and contracts before conclusions have real-world meaning.
 
@@ -91,6 +116,8 @@ src/baseball_run_engine/
   retrosheet.py    # parsed-play advancement fit and validation
   gui.py           # Streamlit browser application
   salaries.py      # strict salary matching and optional community 2026 fetch
+  service_time.py  # estimated MLB credited service time + provenance
+  market_data.py   # automatic in-memory joins and eligibility filters
   markov.py        # exact reference evaluator (dense)
   fast_markov.py   # cached sparse LU evaluator for lineup and roster search
   ui_components.py # OOTP-inspired lineup card and styling
